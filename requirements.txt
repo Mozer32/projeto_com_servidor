@@ -1,0 +1,10 @@
+langchain-core==0.3.0
+langchain-google-genai==2.0.1
+langchain-openai==0.2.0
+google-generativeai==0.8.3
+google-ai-generativelanguage==0.6.10
+langchain==0.3.0
+langgraph
+python-dotenv
+fastapi
+uvicorn
