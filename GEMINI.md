@@ -5,103 +5,86 @@ This file provides context, architectural guidelines, and operational instructio
 ## 1. Project Overview
 
 **DeliveryBot** is a modular chatbot architecture designed to process WhatsApp messages via Mega API.
-The project is currently split into two distinct layers:
+The system operates as a Full-Cycle Pipeline: **Ingestion -> Cleaning -> Thinking (AI) -> Response**.
 
-1.  **Ingestion Layer (Server):** A robust, agnostic FastAPI server that receives webhooks, logs the raw payload, and returns `200 OK`. It acts as a "sponge" to capture data without breaking on validation errors.
+*   **Tech Stack:** Python 3.10+, FastAPI, LangGraph, LangChain.
+*   **AI Provider:** Google Gemini (Model: `gemini-2.5-flash-preview-09-2025`).
+*   **Integration:** Mega API (WhatsApp) + Ngrok (Tunneling).
+
+## 2. Architecture & Flow
+
+The project is split into two distinct layers:
+
+1.  **Ingestion Layer (Server):**
     *   **File:** `src/server/webhook_server.py`
-    *   **Role:** Listen, Log, Confirm.
-2.  **Logic Layer (LangGraph):** A stateful workflow engine (using LangGraph) that will process the business logic (currently decoupled).
+    *   **Role:** "Agnostic Sponge". Receives raw JSON from Mega API, logs it, triggers the robot, and returns `200 OK`.
+2.  **Logic Layer (LangGraph Workflow):**
+    *   **`main.py`:** The Workflow Orchestrator (with `MemorySaver` persistence).
+    *   **`node_base_field.py`:** Data Cleaner (Extracts phone/message).
+    *   **`node_agente_AI.py`:** The Brain. Reads persona from `prompt.md`, queries Gemini, logs conversation to `node_historico.log`.
+    *   **`node_responder_cliente.py`:** The Postman (Sends response back via Mega API).
 
-*   **Tech Stack:** Python 3.10+, FastAPI, Uvicorn, LangGraph, LangChain.
-*   **Infrastructure:** Ngrok (Tunneling), Mega API (WhatsApp Provider).
-
-## 2. Directory Structure
-
-The project follows a clean separation of concerns in `projeto_v1/`:
+## 3. Directory Structure
 
 ```text
 projeto_v1/
-├── .env                       # Environment variables (API Keys)
-├── main.py                    # LangGraph definition (Workflow engine)
+├── .env_local                 # Environment variables (API Keys) - RENAMED for security
+├── main.py                    # LangGraph definition
 ├── requirements.txt           # Python dependencies
-├── guia_instalacao.md         # Detailed installation and setup guide
+├── guia_instalacao.md         # Detailed installation guide
 ├── src/
-│   ├── state.py               # Data Schema (TypedDict) for the graph
+│   ├── state.py               # Data Schema (TypedDict)
 │   ├── server/
-│   │   └── webhook_server.py  # The ACTIVE ingestion server (FastAPI)
-│   └── nodes/                 # Graph Nodes (Business Logic)
-│       ├── node_atendente.py  # First processing node
-│       └── ...
-└── tests/                     # Test scripts
+│   │   ├── webhook_server.py  # Ingestion server
+│   │   └── guia_servidor.md   # Server docs
+│   └── nodes/                 # Business Logic
+│       ├── node_base_field.py       # JSON Parser
+│       ├── node_agente_AI.py        # AI Logic
+│       ├── node_responder_cliente.py # API Sender
+│       ├── prompt.md                # AI Persona Configuration
+│       └── node_historico.log       # Conversation Logs (Auto-generated)
 ```
 
-## 3. Setup & Execution Guide
+## 4. Setup & Execution Guide
 
 ### A. Environment Setup
-Standard procedure to prepare the workspace:
-
 ```bash
 cd ~/Desktop/projeto_v1
 python3 -m venv venv
-source venv/bin/activate  # Mac/Linux (Windows: venv\Scripts\activate)
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### B. Ingestion Server (The "Sponge")
-This is the primary entry point for webhooks. It listens on port 8000.
-
+### B. Running the Server
 ```bash
-# From projeto_v1/ directory
 python3 src/server/webhook_server.py
 ```
-*Output indicates server running at `http://0.0.0.0:8000`.*
+*Server runs at `http://0.0.0.0:8000`.*
 
 ### C. Exposing to Internet (Ngrok)
-To receive real messages from Mega API, a tunnel is required.
-
-**1. Authentication (CRITICAL):**
-To avoid "Browser Warning" blocks from Ngrok, you must authenticate:
-```bash
-# If using global install:
-ngrok config add-authtoken <YOUR_TOKEN>
-
-# If using local binary:
-./ngrok config add-authtoken <YOUR_TOKEN>
-```
-
-**2. Start Tunnel:**
-In a new terminal window (keep Python running in the other):
+**Authentication is mandatory.**
 ```bash
 ngrok http 8000
 ```
-*Copy the generated HTTPS link (e.g., `https://xxxx.ngrok-free.app`).*
 
-### D. Configuring Mega API
-1.  Access the Mega API panel.
-2.  In the **Webhook** field, paste your Ngrok link **Appending the endpoint**:
-    👉 `https://<your-ngrok-url>/webhook`
-3.  Ensure triggers (e.g., `on_message`) are checked/active.
-4.  Save changes.
+### D. Mega API Configuration
+*   **Webhook URL:** `https://<your-ngrok-url>/webhook`
+*   **Triggers:** `on_message`
 
-## 4. Testing Flow
+## 5. Key Features
 
-1.  **Send Message:** Send a WhatsApp message to the connected number.
-2.  **Check Python Terminal:** You should see the raw JSON payload logged.
-3.  **Check Ngrok Terminal:** You should see a `200 OK` request.
+### 🧠 Dynamic AI Persona
+To change the bot's behavior, simply edit `src/nodes/prompt.md`. No code changes required.
 
-## 5. Development Conventions
+### 📝 Logging
+All conversations are automatically saved to `src/nodes/node_historico.log` for auditing.
 
-*   **Server Philosophy:** The server (`webhook_server.py`) must remain **agnostic**. Do not add business logic there. It should only receive, log, and confirm.
-*   **State Management:** All business data must flow through the `base_cliente_state` defined in `src/state.py`.
-*   **Imports:** Run python modules from the root (`projeto_v1`) to avoid `ModuleNotFoundError`. Example: `python3 -m src.server.webhook_server`.
+### 🔐 Security
+*   Keys stored in `.env_local`.
+*   Code uses conditional imports for AI drivers.
 
-## 6. Current Status & Next Steps
+## 6. Troubleshooting
 
-*   **Completed:**
-    *   Environment setup (`venv`).
-    *   Dependency installation.
-    *   Ingestion Server (`webhook_server.py`) is active and tested.
-    *   Ngrok tunneling is configured and authenticated.
-*   **In Progress:**
-    *   Connecting the Ingestion Server to the LangGraph logic (`main.py`).
-    *   Parsing the raw JSON payload into the structured `base_cliente_state`.
+*   **Error 403 (Key Leaked):** Regenerate Google Key and update `.env_local`.
+*   **Error 404 (Model Not Found):** Update `langchain-google-genai` and check model name in `node_agente_AI.py`.
+*   **No Response:** Check if Mega API URL has `https://`.
