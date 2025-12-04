@@ -29,9 +29,10 @@ The project is split into two distinct layers:
 ```text
 projeto_v1/
 ├── .env_local                 # Environment variables (API Keys) - RENAMED for security
+├── .gitignore                 # Specifies intentionally untracked files (e.g., .env_local, logs)
 ├── main.py                    # LangGraph definition
 ├── requirements.txt           # Python dependencies
-├── guia_instalacao.md         # Detailed installation guide
+├── guia_instalacao.md         # Detailed installation and setup guide
 ├── src/
 │   ├── state.py               # Data Schema (TypedDict)
 │   ├── server/
@@ -80,10 +81,22 @@ To change the bot's behavior, simply edit `src/nodes/prompt.md`. No code changes
 All conversations are automatically saved to `src/nodes/node_historico.log` for auditing.
 
 ### 🔐 Security
-*   Keys stored in `.env_local`.
+*   Keys stored in `.env_local`. **Ensure `.env_local` and `src/nodes/node_historico.log` are listed in `.gitignore` to prevent accidental commits.**
 *   Code uses conditional imports for AI drivers.
 
-## 6. Troubleshooting
+## 6. Coding Conventions
+
+### Node Naming in Graph (`main.py`)
+When adding nodes to `workflow.add_node(...)`, always remove the `node_` prefix from the string identifier.
+**Pattern:** `workflow.add_node("suffix_name", node_function_name)`
+
+**Examples:**
+*   ✅ `workflow.add_node("base_field", node_base_field)`
+*   ✅ `workflow.add_node("agente_ai", node_agente_ai)`
+*   ✅ `workflow.add_node("responder_cliente", node_responder_cliente)`
+*   ❌ `workflow.add_node("node_base_field", node_base_field)` (Don't repeat 'node')
+
+## 7. Troubleshooting
 
 *   **Error 403 (Key Leaked):** Regenerate Google Key and update `.env_local`.
 *   **Error 404 (Model Not Found):** Update `langchain-google-genai` and check model name in `node_agente_AI.py`.

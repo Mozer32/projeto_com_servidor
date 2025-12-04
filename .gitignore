@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/  # Para o caso de você usar .venv no futuro
+
+# Arquivos de ambiente e segredos
+.env
+.env_local
+
+# Logs
+*.log
+src/nodes/node_historico.log

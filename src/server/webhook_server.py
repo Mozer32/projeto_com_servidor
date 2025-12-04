@@ -4,21 +4,22 @@ import os
 from fastapi import FastAPI, Request
 from typing import Dict, Any
 
-# --- SETUP DE IMPORTAÇÃO ---
-# Adiciona a raiz do projeto (projeto_v1) ao path para conseguir importar o main.py
-# Isso garante que funcione mesmo rodando de dentro da pasta server
+# --- CONFIGURAÇÃO DE CAMINHOS ---
+# Isso aqui é como desenhar um mapa para o Python achar a "Fábrica Principal" (main.py).
+# Como este arquivo está numa sub-sala (src/server), precisamos ensinar o caminho de volta.
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
+# Tenta chamar o Gerente da Fábrica (main.py)
 try:
     from main import app as destino_final
 except ImportError as e:
-    print(f"⚠️ [SERVER] Erro ao importar main.py: {e}")
+    print(f"⚠️ [PORTARIA] Não achei o Gerente (main.py): {e}")
     destino_final = None
 
-# Definição da Aplicação
-# Docs URL desativado para manter o servidor leve e focado apenas em ingestão
+# --- A PORTARIA (Servidor) ---
+# Criamos a aplicação FastAPI. Ela é o porteiro que fica ouvindo a campainha (Porta 8000).
 app = FastAPI(
-    title="Ingestion Layer (Agnostic Webhook)",
+    title="Portaria de Recebimento (Webhook)",
     docs_url=None, 
     redoc_url=None
 )
@@ -26,65 +27,64 @@ app = FastAPI(
 @app.post("/webhook")
 async def receive_payload(request: Request):
     """
-    Ponto de entrada agnóstico (Esponja).
-    
-    Comportamento:
-    1. Aceita a requisição HTTP bruta.
-    2. Tenta decodificar o JSON para log.
-    3. Retorna 200 OK incondicionalmente.
+    Esta função é o Porteiro Físico.
+    Toda vez que o WhatsApp (Mega API) toca a campainha, esse código roda.
     """
     
-    print("\n--- 📥 [INGESTION] Payload Recebido ---")
-    payload = {} # Inicializa vazio para segurança
+    print("\n--- 📥 [PORTARIA] Chegou uma encomenda (Payload) ---")
+    payload = {} # Prepara uma caixa vazia
     
     try:
-        # Tentamos extrair o JSON para visualização, mas sem schema estrito.
+        # O porteiro pega o pacote json que chegou
         payload = await request.json()
-        print(payload)
+        print(payload) # Mostra o pacote no monitor
         
     except Exception as e:
-        # Se não for JSON (ex: form-data ou texto puro), logamos o erro de parse
-        # mas NÃO falhamos a requisição. A ingestão deve confirmar o recebimento.
-        print(f"⚠️ [AVISO] Payload não é um JSON válido ou está vazio: {e}")
+        print(f"⚠️ [PORTARIA] O pacote chegou rasgado ou não é JSON: {e}")
+        # Se der erro, mostramos o conteúdo bruto mesmo assim
         body_content = await request.body()
         print(f"Conteúdo Bruto: {body_content}")
 
-    print("--- ✅ [INGESTION] Fim do Log ---\n")
+    print("--- ✅ [PORTARIA] Pacote recebido e logado ---\n")
     
-    # --- INTEGRAÇÃO: Disparo para o Robô (LangGraph) ---
+    # --- ENCAMINHAMENTO PARA A FÁBRICA ---
+    # Agora o porteiro precisa levar esse pacote para a esteira de produção (LangGraph)
     if destino_final and payload:
-        print("🚀 [SERVER] Encaminhando pacote para o Robô...")
+        print("🚀 [PORTARIA] Jogando pacote na esteira do Robô...")
         try:
-            # 1. Tenta descobrir QUEM é o cliente para manter a memória (Thread ID)
-            # O padrão do Whats é payload['key']['remoteJid']
-            thread_id = "sessao_anonima" # Fallback
+            # 1. Descobrir o ID do Cliente (Crachá)
+            # Precisamos saber de quem é o pacote para buscar o histórico certo (Memória)
+            thread_id = "sessao_anonima" 
             try:
+                # Tenta ler o remetente na etiqueta do pacote
                 key = payload.get("key", {})
                 if "remoteJid" in key:
                     thread_id = key["remoteJid"]
             except:
-                pass # Se falhar, usa anonimo
+                pass 
 
-            # 2. Configuração de Execução (Com Memória)
+            # 2. Configurar a Sessão
+            # Avisamos a fábrica: "Esse pacote é do cliente X"
             config = {"configurable": {"thread_id": thread_id}}
-            
-            print(f"🆔 Thread ID: {thread_id}")
+            print(f"🆔 Cliente Identificado: {thread_id}")
 
-            # 3. Chama o Robô passando a config
+            # 3. DISPARO! (Invoke)
+            # Aqui entregamos a ficha inicial. Note que só preenchemos 'dados_brutos'.
+            # O resto da ficha está em branco, os funcionários de dentro vão preencher.
             destino_final.invoke({"dados_brutos": payload}, config=config)
             
-            print("✅ [SERVER] Robô recebeu o pacote.")
+            print("✅ [PORTARIA] Robô recebeu e processou.")
         except Exception as e_robo:
-            print(f"❌ [SERVER] Erro ao chamar o Robô: {e_robo}")
+            print(f"❌ [PORTARIA] A fábrica devolveu o pacote (Erro): {e_robo}")
     else:
-        print("⚠️ [SERVER] Pulei o envio (Robô desconectado ou Payload vazio).")
+        print("⚠️ [PORTARIA] Fábrica fechada ou pacote vazio.")
     
-    # Contrato simples de resposta
+    # Sempre respondemos "Recebido" para o entregador (Mega API) não ficar buzinando.
     return {"status": "received"}
 
 if __name__ == "__main__":
-    # Configuração de produção-ready para desenvolvimento local
-    print("🚀 Servidor de Ingestão Iniciado na porta 8000...")
+    # Liga a luz da portaria e abre a porta 8000
+    print("🚀 Portaria Aberta! Esperando entregas na porta 8000...")
     uvicorn.run(
         "webhook_server:app", 
         host="0.0.0.0", 
